@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+}
+
+enum BatchStatus {
+  CREATED
+  IN_PROGRESS
+  QC_PENDING
+  QC_APPROVED
+  QC_REJECTED
+  PACKAGED
+  SHIPPED
+  RECALLED
+}
+
+enum FieldType {
+  NUMBER
+  TEXT
+  BOOLEAN
+  SELECT
+  DATETIME
+}
+
+enum AlertType {
+  OUT_OF_RANGE
+  GATE_FAIL
+  TIMEOUT
+  LOW_CONFIDENCE
+}
+
+enum AlertSeverity {
+  WARNING
+  CRITICAL
+}
+
+enum Disposition {
+  PROCEED
+  REWORK
+  HOLD
+  REJECT
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ─── MODELS ──────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(MANAGER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  batchesCreated     Batch[]       @relation("BatchCreator")
+  stageRecords       StageRecord[] @relation("RecordedBy")
+  committedRecords   StageRecord[] @relation("CommittedBy")
+  alertsAcknowledged Alert[]       @relation("AlertAcknowledger")
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+model Supplier {
+  id             String   @id @default(cuid())
+  name           String
+  contactName    String?  @map("contact_name")
+  contactEmail   String?  @map("contact_email")
+  contactPhone   String?  @map("contact_phone")
+  materialType   String?  @map("material_type")
+  certifications String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  batches Batch[]
+
+  @@map("suppliers")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  category  String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  flavours      Flavour[]
+  processStages ProcessStage[]
+  batches       Batch[]
+  formTemplates FormTemplate[]
+
+  @@map("products")
+}
+
+model Flavour {
+  id        String   @id @default(cuid())
+  productId String   @map("product_id")
+  name      String
+  code      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id])
+  batches Batch[]
+
+  @@unique([productId, code])
+  @@map("flavours")
+}
+
+model ProcessStage {
+  id        String   @id @default(cuid())
+  productId String   @map("product_id")
+  name      String
+  order     Int
+  isQcGate  Boolean  @default(false) @map("is_qc_gate")
+  active    Boolean  @default(true)
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product      Product       @relation(fields: [productId], references: [id])
+  fields       StageField[]
+  stageRecords StageRecord[]
+
+  @@unique([productId, order])
+  @@map("process_stages")
+}
+
+model StageField {
+  id        String    @id @default(cuid())
+  stageId   String    @map("stage_id")
+  name      String
+  labelEn   String    @map("label_en")
+  labelHi   String    @map("label_hi")
+  fieldType FieldType @map("field_type")
+  unit      String?
+  minValue  Float?    @map("min_value")
+  maxValue  Float?    @map("max_value")
+  required  Boolean   @default(true)
+  order     Int
+  options   String?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  stage        ProcessStage  @relation(fields: [stageId], references: [id])
+  measurements Measurement[]
+
+  @@unique([stageId, order])
+  @@map("stage_fields")
+}
+
+model Batch {
+  id           String      @id @default(cuid())
+  batchCode    String      @unique @map("batch_code")
+  productId    String      @map("product_id")
+  flavourId    String      @map("flavour_id")
+  supplierId   String?     @map("supplier_id")
+  supplierLot  String?     @map("supplier_lot")
+  status       BatchStatus @default(CREATED)
+  notes        String?
+  createdById  String      @map("created_by_id")
+  flowSnapshot Json?       @map("flow_snapshot")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  product   Product   @relation(fields: [productId], references: [id])
+  flavour   Flavour   @relation(fields: [flavourId], references: [id])
+  supplier  Supplier? @relation(fields: [supplierId], references: [id])
+  createdBy User      @relation("BatchCreator", fields: [createdById], references: [id])
+
+  stageRecords StageRecord[]
+  qcApprovals  QCApproval[]
+  alerts       Alert[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([productId])
+  @@map("batches")
+}
+
+model StageRecord {
+  id               String    @id @default(cuid())
+  batchId          String    @map("batch_id")
+  stageId          String    @map("stage_id")
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  recordedById     String?   @map("recorded_by_id")
+  committedById    String?   @map("committed_by_id")
+  committedAt      DateTime? @map("committed_at")
+  formPhotoUrls    String[]  @map("form_photo_urls")
+  ocrConfidenceAvg Float?    @map("ocr_confidence_avg")
+  ocrStatus        OcrStatus @default(PENDING) @map("ocr_status")
+  ocrRawResult     Json?     @map("ocr_raw_result")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  batch       Batch        @relation(fields: [batchId], references: [id])
+  stage       ProcessStage @relation(fields: [stageId], references: [id])
+  recordedBy  User?        @relation("RecordedBy", fields: [recordedById], references: [id])
+  committedBy User?        @relation("CommittedBy", fields: [committedById], references: [id])
+
+  measurements Measurement[]
+  qcApproval   QCApproval?
+  alerts       Alert[]
+
+  @@unique([batchId, stageId])
+  @@map("stage_records")
+}
+
+model Measurement {
+  id            String   @id @default(cuid())
+  stageRecordId String   @map("stage_record_id")
+  fieldId       String   @map("field_id")
+  value         String
+  ocrRawValue   String?  @map("ocr_raw_value")
+  ocrConfidence Float?   @map("ocr_confidence")
+  isCorrected   Boolean  @default(false) @map("is_corrected")
+  correctedFrom String?  @map("corrected_from")
+  recordedAt    DateTime @default(now()) @map("recorded_at")
+
+  stageRecord StageRecord @relation(fields: [stageRecordId], references: [id])
+  field       StageField  @relation(fields: [fieldId], references: [id])
+  alerts      Alert[]
+
+  @@map("measurements")
+}
+
+model QCApproval {
+  id            String       @id @default(cuid())
+  batchId       String       @map("batch_id")
+  stageRecordId String       @unique @map("stage_record_id")
+  approverName  String       @map("approver_name")
+  result        String
+  tastePassed   Boolean?     @map("taste_passed")
+  tasteNotes    String?      @map("taste_notes")
+  texturePassed Boolean?     @map("texture_passed")
+  textureNotes  String?      @map("texture_notes")
+  smellPassed   Boolean?     @map("smell_passed")
+  smellNotes    String?      @map("smell_notes")
+  visualPassed  Boolean?     @map("visual_passed")
+  visualNotes   String?      @map("visual_notes")
+  waterActivity Float?       @map("water_activity")
+  phLevel       Float?       @map("ph_level")
+  disposition   Disposition?
+  approvedAt    DateTime     @default(now()) @map("approved_at")
+
+  batch       Batch       @relation(fields: [batchId], references: [id])
+  stageRecord StageRecord @relation(fields: [stageRecordId], references: [id])
+
+  @@map("qc_approvals")
+}
+
+model Alert {
+  id               String        @id @default(cuid())
+  batchId          String        @map("batch_id")
+  stageRecordId    String?       @map("stage_record_id")
+  measurementId    String?       @map("measurement_id")
+  type             AlertType
+  severity         AlertSeverity
+  message          String
+  acknowledgedById String?       @map("acknowledged_by_id")
+  acknowledgedAt   DateTime?     @map("acknowledged_at")
+  acknowledgedNote String?       @map("acknowledged_note")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  batch          Batch        @relation(fields: [batchId], references: [id])
+  stageRecord    StageRecord? @relation(fields: [stageRecordId], references: [id])
+  measurement    Measurement? @relation(fields: [measurementId], references: [id])
+  acknowledgedBy User?        @relation("AlertAcknowledger", fields: [acknowledgedById], references: [id])
+
+  @@index([batchId])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  timestamp  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+model FormTemplate {
+  id           String   @id @default(cuid())
+  productId    String   @map("product_id")
+  name         String
+  templateJson Json     @map("template_json")
+  version      Int      @default(1)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("form_templates")
+}
