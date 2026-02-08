@@ -185,6 +185,42 @@ export async function createBatch(formData: FormData) {
   return { success: true, id: batch.id };
 }
 
+export async function deleteBatch(batchId: string) {
+  const user = await requireAuth();
+
+  const batch = await prisma.batch.findUnique({ where: { id: batchId } });
+  if (!batch) return { error: "Batch not found" };
+
+  // Delete in transaction: measurements → stageRecords → qcApprovals → alerts → batch
+  await prisma.$transaction(async (tx) => {
+    // Delete measurements for all stage records of this batch
+    const stageRecordIds = await tx.stageRecord.findMany({
+      where: { batchId },
+      select: { id: true },
+    });
+    const srIds = stageRecordIds.map((sr) => sr.id);
+
+    await tx.measurement.deleteMany({ where: { stageRecordId: { in: srIds } } });
+    await tx.qCApproval.deleteMany({ where: { stageRecordId: { in: srIds } } });
+    await tx.stageRecord.deleteMany({ where: { batchId } });
+    await tx.alert.deleteMany({ where: { batchId } });
+    await tx.batch.delete({ where: { id: batchId } });
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      action: "DELETE",
+      entityType: "Batch",
+      entityId: batchId,
+      oldValue: { batchCode: batch.batchCode, status: batch.status },
+    },
+  });
+
+  revalidatePath("/batches");
+  return { success: true };
+}
+
 export async function updateBatchStatus(batchId: string, newStatus: BatchStatus) {
   const user = await requireAuth();
 

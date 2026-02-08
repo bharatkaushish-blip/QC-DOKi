@@ -50,7 +50,7 @@ export default async function BatchDetailPage({
           </span>
         }
       >
-        <BatchStatusActions batchId={batch.id} currentStatus={batch.status} />
+        <BatchStatusActions batchId={batch.id} batchCode={batch.batchCode} currentStatus={batch.status} />
       </PageHeader>
 
       {/* Info cards */}
