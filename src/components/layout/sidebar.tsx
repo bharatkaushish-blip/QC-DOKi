@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
   ShoppingBag,
   Truck,
   Settings,
+  ArrowRight,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +20,10 @@ const navItems = [
   { label: "Suppliers", href: "/suppliers", icon: Truck },
   { label: "Settings", href: "/settings", icon: Settings, adminOnly: true },
 ];
+
+const MotionLink = motion.create(Link);
+
+const ACCENT = "#ff6900";
 
 interface SidebarProps {
   userRole?: string;
@@ -38,24 +44,52 @@ export function Sidebar({ userRole }: SidebarProps) {
           <span className="text-sm font-medium text-gray-500">QC Tool</span>
         </Link>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1">
+
+      <nav className="flex-1 px-3 py-6 space-y-1 overflow-hidden">
         {filteredItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
+
           return (
-            <Link
+            <motion.div
               key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-gray-100 text-gray-900"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )}
+              className="flex items-center gap-1 cursor-pointer overflow-hidden rounded-md"
+              initial="initial"
+              whileHover="hover"
+              animate={isActive ? "active" : "initial"}
             >
-              <item.icon className="h-5 w-5" />
-              {item.label}
-            </Link>
+              {/* Animated arrow — slides in from left on hover */}
+              <motion.div
+                variants={{
+                  initial: { x: "-100%", opacity: 0 },
+                  hover: { x: 0, opacity: 1 },
+                  active: { x: 0, opacity: 1 },
+                }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className="flex-shrink-0"
+                style={{ color: ACCENT }}
+              >
+                <ArrowRight strokeWidth={2.5} className="h-5 w-5" />
+              </motion.div>
+
+              {/* Nav link — slides right on hover to make room for arrow */}
+              <MotionLink
+                href={item.href}
+                variants={{
+                  initial: { x: -24, color: "#4b5563" },
+                  hover: { x: 0, color: ACCENT },
+                  active: { x: 0, color: ACCENT },
+                }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className={cn(
+                  "flex items-center gap-3 py-2 px-1 text-sm font-semibold no-underline whitespace-nowrap",
+                  isActive && "font-bold"
+                )}
+              >
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                {item.label}
+              </MotionLink>
+            </motion.div>
           );
         })}
       </nav>

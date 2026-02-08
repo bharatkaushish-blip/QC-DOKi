@@ -24,7 +24,7 @@ interface BatchRow {
   batchCode: string;
   status: BatchStatus;
   product: { name: string };
-  flavour: { name: string };
+  flavour: { name: string } | null;
   createdAt: string;
 }
 
@@ -66,7 +66,13 @@ export function ActiveBatchesPanel({ batches }: ActiveBatchesPanelProps) {
                     </Link>
                   </TableCell>
                   <TableCell>{batch.product.name}</TableCell>
-                  <TableCell>{batch.flavour.name}</TableCell>
+                  <TableCell>
+                    {batch.flavour ? (
+                      batch.flavour.name
+                    ) : (
+                      <span className="text-amber-600 italic">Pending</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <BatchStatusBadge status={batch.status} />
                   </TableCell>

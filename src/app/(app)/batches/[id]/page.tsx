@@ -9,8 +9,10 @@ import { getBatchWithDetails } from "@/actions/batch-actions";
 import { BatchStatusBadge } from "@/components/batches/batch-status-badge";
 import { BatchStatusActions } from "@/components/batches/batch-status-actions";
 import { BatchTimeline } from "@/components/batches/batch-timeline";
+import { FlavourSplitPanel } from "@/components/batches/flavour-split-panel";
 import { Button } from "@/components/ui/button";
 import { Upload, ClipboardCheck } from "lucide-react";
+import { DEFERRED_FLAVOUR_PRODUCT_CODES } from "@/lib/constants";
 
 export default async function BatchDetailPage({
   params,
@@ -27,6 +29,10 @@ export default async function BatchDetailPage({
   const completedStages = batch.stageRecords.filter(
     (sr) => sr.committedAt
   ).length;
+
+  const isDeferredFlavour = DEFERRED_FLAVOUR_PRODUCT_CODES.includes(
+    batch.product.code as (typeof DEFERRED_FLAVOUR_PRODUCT_CODES)[number]
+  );
 
   return (
     <div>
@@ -46,7 +52,13 @@ export default async function BatchDetailPage({
           <span className="flex items-center gap-2">
             <BatchStatusBadge status={batch.status} />
             <Badge variant="outline">{batch.product.name}</Badge>
-            <Badge variant="secondary">{batch.flavour.name}</Badge>
+            {batch.flavour ? (
+              <Badge variant="secondary">{batch.flavour.name}</Badge>
+            ) : (
+              <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                Flavour pending
+              </Badge>
+            )}
           </span>
         }
       >
@@ -133,6 +145,17 @@ export default async function BatchDetailPage({
           <BatchTimeline stageRecords={batch.stageRecords} batchId={batch.id} />
         </CardContent>
       </Card>
+
+      {/* Flavour Splits — only for deferred-flavour products (CC/PP) */}
+      {isDeferredFlavour && (
+        <div className="mt-4">
+          <FlavourSplitPanel
+            batchId={batch.id}
+            splits={batch.flavourSplits}
+            availableFlavours={batch.product.flavours ?? []}
+          />
+        </div>
+      )}
 
       {/* Notes */}
       {batch.notes && (

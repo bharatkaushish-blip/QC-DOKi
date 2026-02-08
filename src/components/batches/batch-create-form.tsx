@@ -17,6 +17,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { DEFERRED_FLAVOUR_PRODUCT_CODES } from "@/lib/constants";
 
 interface Product {
   id: string;
@@ -47,6 +48,11 @@ export function BatchCreateForm({
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
   const availableFlavours = selectedProduct?.flavours ?? [];
+  const isFlavourOptional =
+    selectedProduct &&
+    DEFERRED_FLAVOUR_PRODUCT_CODES.includes(
+      selectedProduct.code as (typeof DEFERRED_FLAVOUR_PRODUCT_CODES)[number]
+    );
 
   // Reset flavour when product changes
   useEffect(() => {
@@ -98,7 +104,9 @@ export function BatchCreateForm({
             </div>
 
             <div className="space-y-2">
-              <Label>Flavour *</Label>
+              <Label>
+                Flavour {isFlavourOptional ? "(optional)" : "*"}
+              </Label>
               <Select
                 value={selectedFlavourId}
                 onValueChange={setSelectedFlavourId}
@@ -107,7 +115,11 @@ export function BatchCreateForm({
                 <SelectTrigger>
                   <SelectValue
                     placeholder={
-                      selectedProductId ? "Select flavour" : "Select product first"
+                      selectedProductId
+                        ? isFlavourOptional
+                          ? "Select flavour (optional)"
+                          : "Select flavour"
+                        : "Select product first"
                     }
                   />
                 </SelectTrigger>
@@ -119,6 +131,11 @@ export function BatchCreateForm({
                   ))}
                 </SelectContent>
               </Select>
+              {isFlavourOptional && (
+                <p className="text-xs text-amber-600">
+                  Flavour is applied during the Seasoning stage. You can assign it later.
+                </p>
+              )}
               {errors.flavourId && (
                 <p className="text-sm text-red-500">{errors.flavourId[0]}</p>
               )}

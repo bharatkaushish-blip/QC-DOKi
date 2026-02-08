@@ -97,13 +97,14 @@ model Supplier {
 }
 
 model Product {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  category  String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  name            String
+  code            String   @unique
+  category        String
+  active          Boolean  @default(true)
+  flavourRequired Boolean  @default(true) @map("flavour_required")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   flavours      Flavour[]
   processStages ProcessStage[]
@@ -122,8 +123,9 @@ model Flavour {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  product Product @relation(fields: [productId], references: [id])
-  batches Batch[]
+  product            Product              @relation(fields: [productId], references: [id])
+  batches            Batch[]
+  batchFlavourSplits BatchFlavourSplit[]
 
   @@unique([productId, code])
   @@map("flavours")
@@ -176,7 +178,7 @@ model Batch {
   id           String      @id @default(cuid())
   batchCode    String      @unique @map("batch_code")
   productId    String      @map("product_id")
-  flavourId    String      @map("flavour_id")
+  flavourId    String?     @map("flavour_id")
   supplierId   String?     @map("supplier_id")
   supplierLot  String?     @map("supplier_lot")
   status       BatchStatus @default(CREATED)
@@ -187,13 +189,14 @@ model Batch {
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
   product   Product   @relation(fields: [productId], references: [id])
-  flavour   Flavour   @relation(fields: [flavourId], references: [id])
+  flavour   Flavour?  @relation(fields: [flavourId], references: [id])
   supplier  Supplier? @relation(fields: [supplierId], references: [id])
   createdBy User      @relation("BatchCreator", fields: [createdById], references: [id])
 
-  stageRecords StageRecord[]
-  qcApprovals  QCApproval[]
-  alerts       Alert[]
+  stageRecords   StageRecord[]
+  qcApprovals    QCApproval[]
+  alerts         Alert[]
+  flavourSplits  BatchFlavourSplit[]
 
   @@index([status])
   @@index([createdAt])
@@ -310,6 +313,21 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([timestamp])
   @@map("audit_logs")
+}
+
+model BatchFlavourSplit {
+  id        String   @id @default(cuid())
+  batchId   String   @map("batch_id")
+  flavourId String   @map("flavour_id")
+  packCount Int      @map("pack_count")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  batch   Batch   @relation(fields: [batchId], references: [id])
+  flavour Flavour @relation(fields: [flavourId], references: [id])
+
+  @@map("batch_flavour_splits")
 }
 
 model FormTemplate {

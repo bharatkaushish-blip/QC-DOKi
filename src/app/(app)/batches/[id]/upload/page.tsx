@@ -47,7 +47,13 @@ export default async function BatchUploadPage({
           <span className="flex items-center gap-2">
             <BatchStatusBadge status={batch.status} />
             <Badge variant="outline">{batch.product.name}</Badge>
-            <Badge variant="secondary">{batch.flavour.name}</Badge>
+            {batch.flavour ? (
+              <Badge variant="secondary">{batch.flavour.name}</Badge>
+            ) : (
+              <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                Flavour pending
+              </Badge>
+            )}
           </span>
         }
       />

@@ -54,7 +54,7 @@ export default async function ValidatePage({
 
       <PageHeader
         title="Validate & Correct Data"
-        description={`${batch.batchCode} — ${batch.product.name} — ${batch.flavour.name}`}
+        description={`${batch.batchCode} — ${batch.product.name}${batch.flavour ? ` — ${batch.flavour.name}` : " — Flavour pending"}`}
       />
 
       <Tabs defaultValue={stageRecords[0]?.id}>

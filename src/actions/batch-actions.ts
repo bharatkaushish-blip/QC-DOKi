@@ -2,7 +2,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { batchSchema } from "@/lib/validators/batch";
+import {
+  batchSchemaWithFlavour,
+  batchSchemaWithoutFlavour,
+} from "@/lib/validators/batch";
 import { generateBatchCode } from "@/lib/batch-code";
 import { revalidatePath } from "next/cache";
 import { BatchStatus } from "@prisma/client";
@@ -36,7 +39,19 @@ export async function getBatchWithDetails(id: string) {
   return prisma.batch.findUnique({
     where: { id },
     include: {
-      product: { select: { id: true, name: true, code: true } },
+      product: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          flavourRequired: true,
+          flavours: {
+            where: { active: true },
+            select: { id: true, name: true, code: true },
+            orderBy: { name: "asc" },
+          },
+        },
+      },
       flavour: { select: { id: true, name: true, code: true } },
       supplier: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
@@ -64,6 +79,12 @@ export async function getBatchWithDetails(id: string) {
         },
         orderBy: { stage: { order: "asc" } },
       },
+      flavourSplits: {
+        include: {
+          flavour: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
       alerts: {
         orderBy: { createdAt: "desc" },
         take: 20,
@@ -83,16 +104,9 @@ export async function createBatch(formData: FormData) {
     notes: formData.get("notes") as string,
   };
 
-  const parsed = batchSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { error: parsed.error.flatten().fieldErrors };
-  }
-
-  const data = parsed.data;
-
-  // Get product with process stages for snapshot
+  // Get product first to determine if flavour is required
   const product = await prisma.product.findUnique({
-    where: { id: data.productId },
+    where: { id: raw.productId },
     include: {
       processStages: {
         where: { active: true },
@@ -111,10 +125,24 @@ export async function createBatch(formData: FormData) {
     return { error: { productId: ["Product not found"] } };
   }
 
+  // Use correct validator based on whether flavour is required
+  const schema = product.flavourRequired
+    ? batchSchemaWithFlavour
+    : batchSchemaWithoutFlavour;
+
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors };
+  }
+
+  const data = parsed.data;
+
   if (product.processStages.length === 0) {
     return {
       error: {
-        productId: ["Product has no process stages configured. Configure the flow first."],
+        productId: [
+          "Product has no process stages configured. Configure the flow first.",
+        ],
       },
     };
   }
@@ -148,7 +176,7 @@ export async function createBatch(formData: FormData) {
       data: {
         batchCode,
         productId: data.productId,
-        flavourId: data.flavourId,
+        flavourId: data.flavourId || null,
         supplierId: data.supplierId || null,
         supplierLot: data.supplierLot || null,
         notes: data.notes || null,
@@ -177,7 +205,11 @@ export async function createBatch(formData: FormData) {
       action: "CREATE",
       entityType: "Batch",
       entityId: batch.id,
-      newValue: { batchCode, productId: data.productId, flavourId: data.flavourId },
+      newValue: {
+        batchCode,
+        productId: data.productId,
+        flavourId: data.flavourId || null,
+      },
     },
   });
 
@@ -191,18 +223,22 @@ export async function deleteBatch(batchId: string) {
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
   if (!batch) return { error: "Batch not found" };
 
-  // Delete in transaction: measurements → stageRecords → qcApprovals → alerts → batch
+  // Delete in transaction: measurements → qcApprovals → stageRecords → splits → alerts → batch
   await prisma.$transaction(async (tx) => {
-    // Delete measurements for all stage records of this batch
     const stageRecordIds = await tx.stageRecord.findMany({
       where: { batchId },
       select: { id: true },
     });
     const srIds = stageRecordIds.map((sr) => sr.id);
 
-    await tx.measurement.deleteMany({ where: { stageRecordId: { in: srIds } } });
-    await tx.qCApproval.deleteMany({ where: { stageRecordId: { in: srIds } } });
+    await tx.measurement.deleteMany({
+      where: { stageRecordId: { in: srIds } },
+    });
+    await tx.qCApproval.deleteMany({
+      where: { stageRecordId: { in: srIds } },
+    });
     await tx.stageRecord.deleteMany({ where: { batchId } });
+    await tx.batchFlavourSplit.deleteMany({ where: { batchId } });
     await tx.alert.deleteMany({ where: { batchId } });
     await tx.batch.delete({ where: { id: batchId } });
   });
@@ -221,7 +257,10 @@ export async function deleteBatch(batchId: string) {
   return { success: true };
 }
 
-export async function updateBatchStatus(batchId: string, newStatus: BatchStatus) {
+export async function updateBatchStatus(
+  batchId: string,
+  newStatus: BatchStatus
+) {
   const user = await requireAuth();
 
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });

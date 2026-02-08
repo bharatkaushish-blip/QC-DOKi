@@ -22,3 +22,13 @@ export const PRODUCT_CATEGORIES = {
   chips: { label: "Chips", icon: "Cookie" },
   puffs: { label: "Puffs", icon: "Popcorn" },
 } as const;
+
+// Products where flavour is assigned at seasoning stage, not at batch creation
+export const DEFERRED_FLAVOUR_PRODUCT_CODES = ["CC", "PP"] as const;
+
+export const DATE_PRESETS = [
+  { label: "Today", value: "today" },
+  { label: "This Week", value: "this_week" },
+  { label: "This Month", value: "this_month" },
+  { label: "Last 30 Days", value: "last_30_days" },
+] as const;

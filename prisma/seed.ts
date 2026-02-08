@@ -264,6 +264,10 @@ async function seedProducts() {
     });
   }
 
+  // Chicken Chips and Pork Puffs have flavour applied at seasoning stage, not at batch creation
+  await prisma.product.update({ where: { code: 'CC' }, data: { flavourRequired: false } });
+  await prisma.product.update({ where: { code: 'PP' }, data: { flavourRequired: false } });
+
   console.log('  Products seeded.');
 }
 

@@ -32,7 +32,7 @@ interface BatchRow {
   status: BatchStatus;
   createdAt: Date;
   product: { name: string; code: string };
-  flavour: { name: string; code: string };
+  flavour: { name: string; code: string } | null;
   supplier: { name: string } | null;
   createdBy: { name: string };
   _count: { stageRecords: number };
@@ -82,7 +82,13 @@ export function BatchListTable({ batches }: { batches: BatchRow[] }) {
                   </Link>
                 </TableCell>
                 <TableCell>{batch.product.name}</TableCell>
-                <TableCell>{batch.flavour.name}</TableCell>
+                <TableCell>
+                  {batch.flavour ? (
+                    batch.flavour.name
+                  ) : (
+                    <span className="text-amber-600 italic">Pending</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   {batch.supplier?.name ?? (
                     <span className="text-gray-400">—</span>

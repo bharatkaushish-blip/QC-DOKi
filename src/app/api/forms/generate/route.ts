@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const element = React.createElement(PdfFormDocument, {
       batchCode: batch.batchCode,
       productName: batch.product.name,
-      flavourName: batch.flavour.name,
+      flavourName: batch.flavour?.name ?? "Pending",
       date: format(new Date(batch.createdAt), "dd MMM yyyy"),
       stage,
     });
